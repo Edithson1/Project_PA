@@ -67,6 +67,58 @@ def create_map(data):
         dtick_value = max(1, int(len(data) / 10))
         fig.update_layout(xaxis_title='Departamento', yaxis_title='Cantidad de Sismos', yaxis=dict(dtick=dtick_value))
         st.plotly_chart(fig)
+        
+        #grafico lineal
+        departaments = data['DEPARTAMENTOS'].unique()
+        selected_years = [data['Año'].astype(int).min(), data['Año'].astype(int).max()+1]
+        valores_x = list(range(selected_years[0], selected_years[1]))
+        df = pd.DataFrame({'x': valores_x})
+        filtered_data = data.loc[:, ['Año', 'DEPARTAMENTOS', 'MAGNITUD', 'PROFUNDIDAD']]
+        filtered_data = filtered_data.sort_values(by='Año', ascending=True)  # ordena segun la fecha
+        selected_metodo = st.selectbox('Selecciona metodo:', ['Conteo', 'PROFUNDIDAD', 'MAGNITUD'])
+        titulo = None
+        if selected_metodo != 'Conteo':
+            selected_parametro = st.selectbox('Selecciona parametro:', ['maximo', 'mediana', 'media', 'minimo'])
+            for i in departaments:
+                datos = filtered_data.copy()
+                datos = datos.loc[datos.loc[:, 'DEPARTAMENTOS'] == i]
+                if selected_parametro == 'maximo':
+                    datos = datos.groupby('Año')[selected_metodo].max().reset_index()
+                elif selected_parametro == 'minimo':
+                    datos = datos.groupby('Año')[selected_metodo].min().reset_index()
+                elif selected_parametro == 'media':
+                    datos = datos.groupby('Año')[selected_metodo].mean().reset_index()
+                elif selected_parametro == 'mediana':
+                    datos = datos.groupby('Año')[selected_metodo].median().reset_index()
+                val_i = list(map(int, datos.loc[:, selected_metodo].values))
+                datos['Año'] = datos['Año'].astype(int)
+                lista = list(datos.loc[:, 'Año'] - 1960)
+                linea = pd.Series(val_i, index=lista, name=i)
+                df = df.join(linea)
+                titulo = 'Gráfico de Líneas - ' + selected_parametro.lower() + " de la " + selected_metodo.lower() + " de los sismos"
+        else:
+            for i in departaments:
+                datos = filtered_data.copy()
+                datos = datos.loc[:, ['Año', 'DEPARTAMENTOS']]
+                datos = datos.loc[datos.loc[:, 'DEPARTAMENTOS'] == i]
+                conteo = datos['Año'].value_counts().reset_index()
+                conteo.columns = ['Año', 'Conteo']
+                conteo = conteo.sort_values(by='Año', ascending=True)
+                val_i = list(map(int, conteo.loc[:, 'Conteo'].values))
+                conteo['Año'] = conteo['Año'].astype(int)
+                lista = list(conteo.loc[:, 'Año'] - 1960)
+                linea = pd.Series(val_i, index=lista, name=i)
+                df = df.join(linea)
+                titulo = 'Gráfico de Líneas - Conteo de Sismos'
+        df = df.fillna(0)  # esto pone los valores None en 0, generando las lineas hasta abajo
+        fig = px.line(df, x='x', y=df.columns[1:], markers=True, line_shape='linear',
+                        labels={'variable': 'Departamento'})
+        fig.update_layout(
+            xaxis_title='Año',
+            yaxis_title=selected_metodo,
+            title=titulo
+        )
+        st.plotly_chart(fig)
 def show_departments_count(data):
     st.subheader('Mapa Sísmico del Perú periodo 1960-2022 (IGP) ')
 
